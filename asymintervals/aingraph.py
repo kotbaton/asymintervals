@@ -2,6 +2,7 @@ from itertools import combinations
 
 import matplotlib.pyplot as plt
 import networkx as nx
+from matplotlib.patches import Patch
 
 from .asymintervals import AIN
 
@@ -49,16 +50,18 @@ class AINGraph:
 
         self.list_of_ains = list_of_ains
         self.graph = nx.Graph()
+        colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+        for i, a in enumerate(self.list_of_ains):
+            # self.graph.nodes[i]['label'] = f'$[{a.lower}, {a.upper}]_{{{a.expected}}}$'
+            self.graph.add_node(i)
+            self.graph.nodes[i]['label'] = chr(ord('A') + i)
+            self.graph.nodes[i]['color'] = colors[i % len(colors)]
+
         for (i, a), (j, b) in combinations(enumerate(list_of_ains, 0), 2):
             w = (a > b) * (a < b)
             if w > 0:
                 self.graph.add_edge(i, j, weight=w)
 
-        colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
-        for i, a in zip(self.graph.nodes, self.list_of_ains):
-            # self.graph.nodes[i]['label'] = f'$[{a.lower}, {a.upper}]_{{{a.expected}}}$'
-            self.graph.nodes[i]['label'] = chr(ord('A') + i)
-            self.graph.nodes[i]['color'] = colors[i % len(colors)]
 
     def __repr__(self):
         """
@@ -97,7 +100,7 @@ class AINGraph:
         """
         raise NotImplementedError('Not implemented yet.')
 
-    def plot_graph(self, precision: int = 4, ax: plt.Axes = None):
+    def plot_graph(self, precision: int = 4, legend: bool = True, ax: plt.Axes = None):
         """
         Visualizes the graph using Matplotlib. Displays nodes, edges, and weights.
 
@@ -123,7 +126,7 @@ class AINGraph:
         node_color = nx.get_node_attributes(self.graph, 'color')
         # Ensure correct order even if graph changed
         node_color = [node_color[i] for i in range(len(node_color))]
-        nx.draw_networkx_nodes(G=self.graph,
+        nodes = nx.draw_networkx_nodes(G=self.graph,
                                node_size=1000,
                                node_color=node_color,
                                linewidths=2,
@@ -149,8 +152,18 @@ class AINGraph:
         edge_labels = {e: f'{w:0.{precision}f}' for e, w in edge_labels.items()}
         nx.draw_networkx_edge_labels(G=self.graph,
                                      edge_labels=edge_labels,
+                                     verticalalignment='top',
+                                     bbox={'alpha': 0.0},
                                      pos=pos,
                                      ax=ax)
+
+        if legend:
+            handles = [Patch(color=node_color[i],
+                             label=f'{chr(ord("A") + i)}: $[{ain.lower}, {ain.upper}]_{{{ain.expected}}}$')
+                       for i, ain in enumerate(self.list_of_ains)]
+            ax.legend(handles=handles,
+                      bbox_to_anchor=(0., 1.02, 1., .102), loc='lower left',
+                      ncol=3, mode="expand", borderaxespad=0.)
 
         ax.margins(0.1)
         ax.axis('off')
@@ -195,7 +208,17 @@ class AINGraph:
                 if j in added_ains:
                     continue
 
-                if (a > b) * (a < b) != 0 or (a.lower == b.upper) or (a.upper == b.lower):
+                overlaps = False
+                for k in levels[-1]:
+                    c = self.list_of_ains[k]
+                    if (c.lower <= b.lower <= c.upper) \
+                            or (c.lower <= b.upper <= c.upper) \
+                            or (b.lower <= c.lower <= b.upper) \
+                            or (b.lower <= c.upper <= b.upper):
+                        overlaps = True
+                        break
+
+                if overlaps:
                     continue
 
                 levels[-1].append(j)
@@ -212,7 +235,9 @@ class AINGraph:
                 ax.text(ain.lower, i, f'{chr(ord('A') + ain_idx)} ',
                         ha='right', va='center', fontsize=12)
 
-        ax.set_yticks([])
+        ax.grid(alpha=0.5, linestyle='--')
+
+        ax.set_yticks(range(len(levels)), labels=[])
         ax.set_ylim(-0.5, len(levels) - 0.5)
 
         return ax
