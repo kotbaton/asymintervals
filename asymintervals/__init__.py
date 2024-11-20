@@ -1,2 +1,2 @@
-from asymintervals.asymintervals import AIN
-from aingraph import AINGraph
+from .asymintervals import AIN
+from .aingraph import AINGraph
