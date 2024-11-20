@@ -54,8 +54,11 @@ class AINGraph:
             if w > 0:
                 self.graph.add_edge(i, j, weight=w)
 
+        colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
         for i, a in zip(self.graph.nodes, self.list_of_ains):
-            self.graph.nodes[i]['label'] = f'$[{a.lower}, {a.upper}]_{{{a.expected}}}$'
+            # self.graph.nodes[i]['label'] = f'$[{a.lower}, {a.upper}]_{{{a.expected}}}$'
+            self.graph.nodes[i]['label'] = chr(ord('A') + i)
+            self.graph.nodes[i]['color'] = colors[i % len(colors)]
 
     def __repr__(self):
         """
@@ -117,9 +120,12 @@ class AINGraph:
         pos = nx.circular_layout(self.graph)
 
         # Draw nodes
+        node_color = nx.get_node_attributes(self.graph, 'color')
+        # Ensure correct order even if graph changed
+        node_color = [node_color[i] for i in range(len(node_color))]
         nx.draw_networkx_nodes(G=self.graph,
-                               node_size=2500,
-                               node_color='tab:orange',
+                               node_size=1000,
+                               node_color=node_color,
                                linewidths=2,
                                edgecolors='k',
                                pos=pos,
@@ -148,4 +154,65 @@ class AINGraph:
 
         ax.margins(0.1)
         ax.axis('off')
+        return ax
+
+    def plot_intervals(self, ax: plt.Axes = None):
+        """
+        Visualizes the intervals of the AIN objects in a horizontal stacked manner, organized by levels to avoid overlap.
+
+        Parameters
+        ----------
+        ax : plt.Axes, optional
+            The Matplotlib axis to draw the intervals on. If None, the current axis (`plt.gca()`) will be used.
+
+        Returns
+        -------
+        matplotlib.axes.Axes
+            The axis on which the intervals are plotted.
+
+        Notes
+        -----
+        - Intervals are grouped into levels to avoid overlap in the visualization. Each level contains intervals
+          that do not overlap or touch each other.
+        - Each interval is displayed as a horizontal line with markers for its lower bound, expected value, and upper bound.
+        - Labels corresponding to the interval indices are displayed next to the intervals.
+        """
+        if ax is None:
+            ax = plt.gca()
+
+        levels = []
+        added_ains = set()
+        for i, a in enumerate(self.list_of_ains):
+            # Create a new level and add single AIN here if not already added
+            if i in added_ains:
+                continue
+
+            levels.append([i])
+            added_ains.add(i)
+
+            # Add to this level any other AIN which not overlaps and is not already added
+            for j, b in enumerate(self.list_of_ains):
+                if j in added_ains:
+                    continue
+
+                if (a > b) * (a < b) != 0 or (a.lower == b.upper) or (a.upper == b.lower):
+                    continue
+
+                levels[-1].append(j)
+                added_ains.add(j)
+
+        for i, level in enumerate(levels):
+            for ain_idx in level:
+                ain = self.list_of_ains[ain_idx]
+                ax.plot([ain.lower, ain.expected, ain.upper], [i] * 3,
+                        marker='$|$',
+                        markersize=10,
+                        color=self.graph.nodes[ain_idx]['color'],
+                        linewidth=2)
+                ax.text(ain.lower, i, f'{chr(ord('A') + ain_idx)} ',
+                        ha='right', va='center', fontsize=12)
+
+        ax.set_yticks([])
+        ax.set_ylim(-0.5, len(levels) - 0.5)
+
         return ax
